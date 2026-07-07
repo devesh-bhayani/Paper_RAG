@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+uv.lock.tmp
+
+# rebuildable index and caches — re-created by `uv run python -m ragcore.ingest`
+data/lancedb/
+data/staging/
+data/exports/
+
+# source PDFs: keep out of git (size + possible copyright); library layout is documented in SYSTEM_DESIGN.md
+data/library/

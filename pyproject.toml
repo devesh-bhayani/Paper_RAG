@@ -1,0 +1,28 @@
+[project]
+name = "paper-rag"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "docling>=2.110.0",
+    "gradio>=5,<6",
+    "lancedb>=0.34.0",
+    "ollama>=0.6.2",
+    "torch==2.12.1",
+    "torchvision==0.27.1",
+]
+
+# pc profile is Windows-only; resolving for other platforms pulls in phantom
+# CUDA-wheel combos that don't exist. Mac migration replaces this block (MPS wheels).
+[tool.uv]
+environments = ["sys_platform == 'win32'"]
+
+# Docling's models run on the RTX 4060 Ti via CUDA; PyPI ships CPU-only torch on Windows.
+# torch 2.12.1 cp313 win wheels live on the cu130 index (driver 591.86 supports CUDA 13).
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130", marker = "sys_platform == 'win32'" }
+torchvision = { index = "pytorch-cu130", marker = "sys_platform == 'win32'" }
