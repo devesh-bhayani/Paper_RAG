@@ -26,7 +26,7 @@ def submit(upload_path: Path, course: str) -> str:
     dest.parent.mkdir(parents=True, exist_ok=True)
     if upload_path.resolve() != dest.resolve():
         shutil.copy2(upload_path, dest)
-    doc_id = str(dest.relative_to(config.LIBRARY_DIR))
+    doc_id = dest.relative_to(config.LIBRARY_DIR).as_posix()  # posix: index portability
     status[doc_id] = "queued"
     _ensure_worker()
     _q.put(dest)
@@ -44,7 +44,7 @@ def _run() -> None:
     table = store.open_table()
     while True:
         pdf = _q.get()
-        doc_id = str(pdf.relative_to(config.LIBRARY_DIR))
+        doc_id = pdf.relative_to(config.LIBRARY_DIR).as_posix()
         try:
             if doc_id in store.existing_doc_ids(table):
                 status[doc_id] = "skipped (already indexed)"

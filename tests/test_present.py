@@ -12,8 +12,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import config
 from ragcore import generate, present, store
 
-SMALL_DOC = r"test-uploads\gru-eval.pdf"
-DECK_DOC = r"classic-papers\attention-is-all-you-need.pdf"
+SMALL_DOC = "test-uploads/gru-eval.pdf"
+DECK_DOC = "classic-papers/attention-is-all-you-need.pdf"
 
 
 def main() -> None:

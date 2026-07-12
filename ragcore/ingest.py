@@ -94,7 +94,8 @@ def ingest_pdf(table, pdf: Path, on_stage=None, gpu_lock=None) -> int:
     from contextlib import nullcontext
 
     note = on_stage or (lambda s: None)
-    doc_id = str(pdf.relative_to(config.LIBRARY_DIR))
+    # doc_id is always posix-style so the index is portable across Windows/mac
+    doc_id = pdf.relative_to(config.LIBRARY_DIR).as_posix()
     note("parsing")
     records = chunk_doc(parse(pdf), doc_id, pdf.parent.name, str(pdf))
     note("embedding")
@@ -110,14 +111,14 @@ def ingest_dir(root: Path) -> None:
     table = store.open_table()
     done = store.existing_doc_ids(table)
     pdfs = [p for p in sorted(root.rglob("*.pdf"))
-            if str(p.relative_to(config.LIBRARY_DIR)) not in done]
+            if p.relative_to(config.LIBRARY_DIR).as_posix() not in done]
     if not pdfs:
         print("nothing new to ingest")
         return
 
     for batch in batched(pdfs, config.BATCH_DOCS):
         for pdf in batch:
-            doc_id = str(pdf.relative_to(config.LIBRARY_DIR))
+            doc_id = pdf.relative_to(config.LIBRARY_DIR).as_posix()
             t0 = time.time()
             n = ingest_pdf(table, pdf,
                            on_stage=lambda s, d=doc_id: print(f"{s}  {d} ...", flush=True))
