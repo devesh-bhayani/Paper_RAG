@@ -17,6 +17,18 @@ DECK_DOC = "classic-papers/attention-is-all-you-need.pdf"
 
 
 def main() -> None:
+    # 0. fit_chunks (pure, no Ollama): overflow drops from the end, keeps leading prefix
+    small = [{"text": "x" * 1000} for _ in range(10)]
+    kept, dropped = generate.fit_chunks(small, config.FULLDOC_NUM_CTX)
+    assert dropped == 0 and len(kept) == 10, (len(kept), dropped)
+    huge = [{"text": "x" * 4000} for _ in range(100)]
+    kept, dropped = generate.fit_chunks(huge, config.FULLDOC_NUM_CTX)
+    assert dropped > 0 and 1 <= len(kept) < 100 and kept == huge[:len(kept)], \
+        f"overflow should keep a leading prefix: kept {len(kept)} dropped {dropped}"
+    assert generate.fit_chunks([{"text": "x" * 10**6}], 16384) == \
+        ([{"text": "x" * 10**6}], 0), "a single oversized chunk must still be kept"
+    print(f"fit_chunks OK: full paper kept, huge paper kept {len(kept)} dropped {dropped}")
+
     docs = store.list_docs()
     assert SMALL_DOC in docs and DECK_DOC in docs, f"missing test docs in {docs}"
 

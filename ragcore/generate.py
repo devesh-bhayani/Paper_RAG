@@ -22,6 +22,27 @@ Rules:
 - Be concise and technical."""
 
 
+# Ollama silently drops the OLDEST prompt tokens on overflow — i.e. the paper's start
+# (abstract, intro). We truncate from the END ourselves so that loss is visible and the
+# front matter survives. ~3 chars/token is a low estimate → over-counts tokens → safe.
+_CHARS_PER_TOKEN = 3
+_GEN_HEADROOM = 4096  # tokens reserved for system prompt + question + the answer
+
+
+def fit_chunks(chunks: list[dict], num_ctx: int) -> tuple[list[dict], int]:
+    """Keep the leading chunks (reading order) that fit; return (kept, dropped_count).
+    Always keeps at least one chunk."""
+    budget_chars = (num_ctx - _GEN_HEADROOM) * _CHARS_PER_TOKEN
+    kept: list[dict] = []
+    used = 0
+    for c in chunks:
+        used += len(c["text"]) + 40  # + the "[n] (doc p.X, section)" header line
+        if used > budget_chars and kept:
+            break
+        kept.append(c)
+    return kept, len(chunks) - len(kept)
+
+
 def build_prompt(question: str, chunks: list[dict]) -> str:
     ctx = "\n\n".join(
         f"[{i}] ({c['doc_id']} p.{c['page']}"
@@ -61,17 +82,23 @@ def answer(question: str, tier: str = "daily", k: int = 8,
 
 def answer_full_doc(question: str, doc_id: str,
                     tier: str = "daily") -> tuple[Iterator[str], list[dict]]:
-    """Whole-paper mode: the entire document goes into context in reading order."""
-    chunks = store.doc_chunks(doc_id)
+    """Whole-paper mode: the entire document goes into context in reading order.
+    Returns (stream, kept_chunks) — citations are numbered against kept_chunks."""
+    all_chunks = store.doc_chunks(doc_id)
+    kept, dropped = fit_chunks(all_chunks, config.FULLDOC_NUM_CTX)
 
     def stream() -> Iterator[str]:
-        if not chunks:
+        if not all_chunks:
             yield f"{REFUSAL} (document not found in index: {doc_id})"
             return
-        yield from _chat_stream(tier, question, chunks,
+        if dropped:
+            yield (f"> ⚠ This paper has {len(all_chunks)} chunks; only the first "
+                   f"{len(kept)} fit the context window, so the last {dropped} (later "
+                   f"sections) were omitted. Ask a scoped question to reach them.\n\n")
+        yield from _chat_stream(tier, question, kept,
                                 num_ctx=config.FULLDOC_NUM_CTX)
 
-    return stream(), chunks
+    return stream(), kept
 
 
 def main() -> None:

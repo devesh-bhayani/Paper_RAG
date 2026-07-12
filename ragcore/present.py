@@ -12,7 +12,7 @@ import ollama
 
 import config
 from ragcore import store
-from ragcore.generate import build_prompt
+from ragcore.generate import build_prompt, fit_chunks
 
 DECK_SYSTEM = """You are preparing a GRADED in-class presentation of an academic paper \
 for the NYU graduate course "Efficient AI and Hardware Accelerators". Three students \
@@ -102,10 +102,15 @@ def extract_figures(doc_id: str) -> list[Path]:
 
 def deck_stream(doc_id: str, talk_length: str = "15 min",
                 tier: str = "daily") -> Iterator[str]:
-    chunks = store.doc_chunks(doc_id)
-    if not chunks:
+    all_chunks = store.doc_chunks(doc_id)
+    if not all_chunks:
         yield f"Document not found in index: {doc_id}"
         return
+    # deck reserves num_predict=4096 for output; fit_chunks' headroom covers it
+    chunks, dropped = fit_chunks(all_chunks, config.FULLDOC_NUM_CTX)
+    if dropped:
+        yield (f"<!-- WARNING: {dropped} of {len(all_chunks)} chunks omitted (paper "
+               f"exceeds context); later sections may be under-covered. -->\n")
 
     manifest = export_dir(doc_id) / "figures" / "manifest.tsv"
     if manifest.exists() and manifest.read_text(encoding="utf-8").strip():

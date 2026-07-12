@@ -17,21 +17,18 @@ posix doc_ids verified); `eval_retrieval.py` 20/20 and `test_present.py` PASS af
 Note for the Mac migration: nothing left to do here — the index is now
 separator-independent.
 
-## 2. Whole-paper mode silently truncates long documents from the front
+## 2. ~~Whole-paper mode silently truncates long documents from the front~~ — **FIXED 2026-07-12**
 
-**What:** `generate.answer_full_doc` and `present.deck_stream` stuff all chunks into a
-`FULLDOC_NUM_CTX` (16384 on pc) window. Ollama silently drops the *oldest* prompt
-tokens when the prompt exceeds the window — i.e. the paper's beginning (abstract,
-intro) vanishes first, with no warning.
-**Where:** `ragcore/generate.py::answer_full_doc`, `ragcore/present.py::deck_stream`,
-`config.py::FULLDOC_NUM_CTX`.
-**Why it matters:** Works fine for ≤20-page papers; a textbook chapter or a long
-survey will produce confident answers/decks that never saw the introduction. For a
-graded presentation this is a quiet correctness failure.
-**Fix (single task):** Estimate tokens (`sum(len(c["text"]) for c in chunks) // 3` is
-close enough) in both call sites; if the estimate exceeds `FULLDOC_NUM_CTX - 4096`
-(generation headroom), prepend a visible warning line to the stream ("⚠ paper exceeds
-context; answers may miss the first N chunks") or fall back to retrieval mode.
+**What it was:** `answer_full_doc` / `deck_stream` stuffed all chunks into the context;
+Ollama silently dropped the *oldest* tokens (abstract/intro) on overflow, with no warning.
+**Fix applied:** `generate.fit_chunks(chunks, num_ctx)` keeps the leading chunks that
+fit (front matter survives; truncation is from the END, ours not Ollama's) and reports
+the dropped count. `answer_full_doc` prepends a visible `> ⚠ …` warning and returns the
+kept chunks (citations stay numbered against what the model saw); `deck_stream` prepends
+an HTML-comment warning. `~3 chars/token` estimate with 4096-token headroom. Gate
+`tests/test_present.py` step 0 covers the boundary logic (pure, no Ollama). Present gate
+PASS. Remaining nuance: truncation still loses the paper's *later* sections silently to
+the deck's content — acceptable, and the warning makes it visible.
 
 ## 3. SQL filter values are string-interpolated without escaping
 
