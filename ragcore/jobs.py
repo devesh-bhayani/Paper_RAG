@@ -56,7 +56,10 @@ def _run() -> None:
                 on_stage=lambda s: status.__setitem__(doc_id, s),
                 gpu_lock=gpu_lock,
             )
-            store.ensure_fts(table)
+            # ponytail: FTS rebuild is O(whole corpus) — once per burst, not per doc.
+            # New rows are vector-searchable immediately; BM25 catches up at burst end.
+            if _q.empty():
+                store.ensure_fts(table)
             status[doc_id] = f"indexed ({n} chunks)"
         except Exception as e:  # keep the worker alive for the next doc
             status[doc_id] = f"failed: {e}"

@@ -39,19 +39,20 @@ clause builder. Verified: `course="o'reilly's course"` returns empty instead of
 raising; doc_id filtering still exact; `eval_retrieval.py` 20/20. Reuse `_escape`
 for any future filter (e.g. `delete_doc`, gap #8).
 
-## 4. Staging cache keyed by filename stem — silent cross-course collisions
+## 4. ~~Staging cache keyed by filename stem — silent cross-course collisions~~ — **FIXED 2026-07-15**
 
-**What:** `ingest.parse` caches the parsed document at
-`data/staging/<pdf_stem>.json`. Two different PDFs named `lecture1.pdf` in two
-different course folders share a cache slot: the second one ingests the *first one's
-parsed content* without any error.
-**Where:** `ragcore/ingest.py::parse`.
-**Why it matters:** Wrong text gets indexed under the wrong doc_id, silently. With
-multiple courses, generic filenames (`notes.pdf`, `slides.pdf`) are likely.
-**Fix (single task):** Key the cache by the sanitized relative path, e.g.
-`doc_id.replace("\\", "__").replace("/", "__") + ".json"`. Invalidate old cache by
-renaming existing files or just accepting a one-time re-parse. Coordinate with gap #1
-so the key is separator-independent.
+**What it was:** `parse()` cached at `data/staging/<stem>.json`, so two courses each
+holding a `lecture1.pdf` shared one slot — the second silently ingested the first's text.
+**Fix applied:** `ingest.cache_path()` keys on the library-relative path with separators
+flattened (`cs101/lecture1.pdf` → `cs101__lecture1.json`); falls back to the stem for
+ad-hoc parses outside the library. Existing 7 staging files migrated by hand (no stem
+collisions existed, verified) so no re-parse was needed; `ingest` confirms cache hits.
+Regression check lives in `tests/test_smoke.py` (pure, no Ollama).
+**Still open (same bug, different dir):** `present.export_dir()` uses `Path(doc_id).stem`
+— two courses with same-named papers share `data/exports/<stem>/`. Left alone
+deliberately: the fix makes the user-facing download path uglier
+(`classic-papers__attention…/deck.md`), and overwriting your own deck is a milder
+failure than indexing wrong text. Revisit if a real collision appears.
 
 ## 5. ~~`jobs.status` iterated while another thread mutates it~~ — **FIXED 2026-07-13**
 
@@ -63,23 +64,22 @@ atomic under the GIL) before iterating; `_ensure_worker` guarded by `_worker_loc
 Verified with a stress test: 20,000 `rows()` calls against a thread hot-writing and
 clearing the dict — zero errors.
 
-## 6. Per-document FTS rebuild + full-table materialization in the ingest hot path
+## 6. ~~Per-document FTS rebuild + full-table materialization in the ingest hot path~~ — **FIXED 2026-07-15**
 
-**What:** Two compounding costs: (a) the jobs worker calls `store.ensure_fts` (a full
-BM25 index rebuild, `replace=True`) after **every single document**; (b)
-`store.existing_doc_ids` and `store.doc_chunks` call `table.to_arrow()`, which
-materializes **all columns including the 1024-float vectors** before selecting, and the
-worker calls `existing_doc_ids` once per queued document.
-**Where:** `ragcore/jobs.py::_run`, `ragcore/store.py::existing_doc_ids`,
-`ragcore/store.py::doc_chunks`.
-**Why it matters:** Fine at 300 chunks. At textbook scale (tens of thousands of
-chunks) ingestion becomes quadratic-ish and each status poll drags hundreds of MB
-through RAM. The `ponytail:` comments flag this as deliberate — but the jobs worker
-calling it per-document wasn't part of that bargain.
-**Fix (single task):** (a) In `_run`, only call `ensure_fts` when `_q.empty()`.
-(b) In both store helpers, select columns *before* materializing — LanceDB supports
-`table.search().where(...).select([...])` or `table.to_lance().to_table(columns=[...])`;
-use whichever the pinned lancedb version supports and keep the ponytail comment.
+**What it was:** (a) the jobs worker rebuilt the whole BM25 index after *every* document;
+(b) `existing_doc_ids` / `doc_chunks` / `list_docs` called `table.to_arrow()`, which pulls
+every column — including the 1024-float vectors — into memory before selecting.
+**Fix applied:** (a) `jobs._run` only calls `ensure_fts` when `_q.empty()` — once per
+burst. New rows stay vector-searchable meanwhile; BM25 catches up at burst end.
+(b) All three helpers now use lancedb's native empty-query builder
+(`table.search().select([...]).where(...).limit(0)`) — projection + filter pushdown, no
+new dependency (`to_lance()` would have needed `pylance`). `list_docs` now delegates to
+`existing_doc_ids` (dedupes duplicated logic).
+**Measured** (synthetic 20k-chunk table, since the real corpus at 306 chunks is too small
+to show anything): `doc_chunks` **275 ms → 10 ms (27×)**; `existing_doc_ids` RSS
+**+100 MB → +3.5 MB (29×)** with wall clock a wash (45→51 ms — irrelevant next to the
+memory). Note: tracemalloc under-reports this badly because Arrow allocates off the
+Python heap; RSS is the honest instrument here.
 
 ## 7. Test suite is order-dependent and assumes a pre-populated environment
 

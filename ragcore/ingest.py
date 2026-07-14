@@ -37,11 +37,21 @@ def _get_converter():
     return _converter
 
 
+def cache_path(pdf_path: Path) -> Path:
+    """Staging key = the full library-relative path, not just the stem: two courses can
+    each hold a lecture1.pdf and they must never share a cache slot."""
+    try:
+        rel = pdf_path.relative_to(config.LIBRARY_DIR).with_suffix("").as_posix()
+    except ValueError:  # parsed from outside the library (ad-hoc call)
+        rel = pdf_path.stem
+    return config.STAGING_DIR / (rel.replace("/", "__") + ".json")
+
+
 def parse(pdf_path: Path):
     """Parse a PDF, caching the DoclingDocument JSON in staging — parse once, re-chunk free."""
     from docling_core.types.doc import DoclingDocument
 
-    cache = config.STAGING_DIR / (pdf_path.stem + ".json")
+    cache = cache_path(pdf_path)
     if cache.exists():
         return DoclingDocument.load_from_json(cache)
     doc = _get_converter().convert(pdf_path).document

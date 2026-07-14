@@ -14,6 +14,14 @@ from ragcore import ingest, store
 
 
 def main() -> None:
+    # staging cache must key on the full relative path, not the stem: two courses can
+    # each hold a lecture1.pdf and must not share (and silently swap) a cache slot
+    a = ingest.cache_path(config.LIBRARY_DIR / "cs101" / "lecture1.pdf")
+    b = ingest.cache_path(config.LIBRARY_DIR / "cs202" / "lecture1.pdf")
+    assert a != b, f"staging cache collision: {a}"
+    assert "/" not in a.name and "\\" not in a.name, f"separator in filename: {a.name}"
+    print(f"cache_path OK: {a.name} != {b.name}")
+
     pdfs = list(config.LIBRARY_DIR.rglob("*.pdf"))
     assert pdfs, f"put at least one PDF under {config.LIBRARY_DIR} first"
 

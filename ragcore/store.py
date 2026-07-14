@@ -26,10 +26,11 @@ def open_table() -> lancedb.table.Table:
 
 
 def existing_doc_ids(table: lancedb.table.Table) -> set[str]:
-    # ponytail: full column scan; fine for thousands of docs, revisit never
+    # project one column: to_arrow() would drag 1024 floats per row through RAM first.
+    # limit(0) = no limit. ponytail: still a full scan, fine below ~100k chunks.
     if table.count_rows() == 0:
         return set()
-    return set(table.to_arrow().column("doc_id").to_pylist())
+    return {r["doc_id"] for r in table.search().select(["doc_id"]).limit(0).to_list()}
 
 
 def add_chunks(table: lancedb.table.Table, records: list[dict]) -> None:
@@ -77,18 +78,18 @@ _META_COLS = [f.name for f in SCHEMA if f.name != "vector"]
 
 
 def list_docs() -> list[str]:
-    table = open_table()
-    if table.count_rows() == 0:
-        return []
-    return sorted(set(table.to_arrow().column("doc_id").to_pylist()))
+    return sorted(existing_doc_ids(open_table()))
 
 
 def doc_chunks(doc_id: str) -> list[dict]:
     """All chunks of one document in reading order — whole-paper context."""
-    # ponytail: full-table scan + python filter; corpus is a few hundred chunks
-    table = open_table()
-    rows = table.to_arrow().select(_META_COLS).to_pylist()
-    return sorted((r for r in rows if r["doc_id"] == doc_id), key=lambda r: r["seq"])
+    # filter pushed into lance + metadata columns only (no vectors materialized)
+    rows = (open_table().search()
+            .select(_META_COLS)
+            .where(f"doc_id = '{_escape(doc_id)}'")
+            .limit(0)
+            .to_list())
+    return sorted(rows, key=lambda r: r["seq"])
 
 
 if __name__ == "__main__":  # quick manual poke: python -m ragcore.store "query"
