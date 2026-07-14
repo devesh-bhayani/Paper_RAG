@@ -30,17 +30,14 @@ an HTML-comment warning. `~3 chars/token` estimate with 4096-token headroom. Gat
 PASS. Remaining nuance: truncation still loses the paper's *later* sections silently to
 the deck's content — acceptable, and the warning makes it visible.
 
-## 3. SQL filter values are string-interpolated without escaping
+## 3. ~~SQL filter values are string-interpolated without escaping~~ — **FIXED 2026-07-13**
 
-**What:** `store.search` builds `WHERE` clauses as `f"{col} = '{val}'"`. A value
-containing an apostrophe breaks the query; deliberate injection is conceivable.
-**Where:** `ragcore/store.py::search` (the `clauses` list).
-**Why it matters:** Severity here is *correctness*, not really security (values come
-from the app's own dropdowns, single local user) — but a PDF named `o'reilly-notes.pdf`
-or a course dir `nyu'26` crashes every filtered search, and doc_ids are minted from
-arbitrary user filenames via the upload path.
-**Fix (single task):** Escape quotes: `val.replace("'", "''")` in the clause builder.
-One line. Add a filename-with-apostrophe case to `tests/test_smoke.py` if cheap.
+**What it was:** `store.search` interpolated filter values into `WHERE` clauses
+unescaped; a filename/course containing `'` crashed every filtered search.
+**Fix applied:** `store._escape()` doubles single quotes (SQL-style); used in the
+clause builder. Verified: `course="o'reilly's course"` returns empty instead of
+raising; doc_id filtering still exact; `eval_retrieval.py` 20/20. Reuse `_escape`
+for any future filter (e.g. `delete_doc`, gap #8).
 
 ## 4. Staging cache keyed by filename stem — silent cross-course collisions
 
@@ -56,19 +53,15 @@ multiple courses, generic filenames (`notes.pdf`, `slides.pdf`) are likely.
 renaming existing files or just accepting a one-time re-parse. Coordinate with gap #1
 so the key is separator-independent.
 
-## 5. `jobs.status` iterated while another thread mutates it
+## 5. ~~`jobs.status` iterated while another thread mutates it~~ — **FIXED 2026-07-13**
 
-**What:** `jobs.rows()` does `reversed(status.items())` on a plain dict that the worker
-thread writes concurrently; the Gradio timer calls `rows()` every 2 s. Python raises
-`RuntimeError: dictionary changed size during iteration` if an insert lands mid-iteration.
-Also `_ensure_worker` has a check-then-set race: two simultaneous uploads (Gradio
-handlers run in a thread pool) can start two worker threads.
-**Where:** `ragcore/jobs.py::rows`, `ragcore/jobs.py::_ensure_worker`.
-**Why it matters:** Low frequency but real: the status table intermittently errors
-exactly when the user is watching an active ingestion — the worst moment. Two workers
-would double-ingest a queued file.
-**Fix (single task):** `rows()` → snapshot first: `list(status.items())[::-1]`.
-`_ensure_worker` → guard with a module-level `threading.Lock`. Four lines total.
+**What it was:** `rows()` iterated the live `status` dict while the worker thread
+wrote to it (`RuntimeError: dictionary changed size during iteration` risk on every
+2 s UI poll); `_ensure_worker` had a check-then-set race that could start two workers.
+**Fix applied:** `rows()` snapshots via `list(status.items())` (C-level, effectively
+atomic under the GIL) before iterating; `_ensure_worker` guarded by `_worker_lock`.
+Verified with a stress test: 20,000 `rows()` calls against a thread hot-writing and
+clearing the dict — zero errors.
 
 ## 6. Per-document FTS rebuild + full-table materialization in the ingest hot path
 

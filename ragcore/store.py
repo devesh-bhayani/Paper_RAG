@@ -42,6 +42,11 @@ def ensure_fts(table: lancedb.table.Table) -> None:
     table.create_fts_index("text", use_tantivy=False, replace=True)
 
 
+def _escape(val: str) -> str:
+    """SQL-style single-quote escaping for filter values (filenames may contain ')."""
+    return val.replace("'", "''")
+
+
 def search(query: str, k: int = 8, course: str | None = None,
            doc_type: str | None = None, content_kind: str | None = None,
            doc_id: str | None = None) -> list[dict]:
@@ -58,7 +63,8 @@ def search(query: str, k: int = 8, course: str | None = None,
          .text(query)
          .rerank(RRFReranker())
          .limit(k))
-    clauses = [f"{col} = '{val}'" for col, val in
+    # values come from filenames/dirs the user controls — escape quotes (SQL-style)
+    clauses = [f"{col} = '{_escape(val)}'" for col, val in
                (("course", course), ("doc_type", doc_type),
                 ("content_kind", content_kind), ("doc_id", doc_id))
                if val]

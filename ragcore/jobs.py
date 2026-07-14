@@ -17,6 +17,7 @@ gpu_lock = threading.Lock()
 status: dict[str, str] = {}  # doc_id -> state, insertion-ordered
 _q: queue.Queue[Path] = queue.Queue()
 _worker_started = False
+_worker_lock = threading.Lock()  # Gradio handlers run in a thread pool
 
 
 def submit(upload_path: Path, course: str) -> str:
@@ -35,9 +36,10 @@ def submit(upload_path: Path, course: str) -> str:
 
 def _ensure_worker() -> None:
     global _worker_started
-    if not _worker_started:
-        threading.Thread(target=_run, daemon=True).start()
-        _worker_started = True
+    with _worker_lock:  # two racing uploads must not start two workers
+        if not _worker_started:
+            threading.Thread(target=_run, daemon=True).start()
+            _worker_started = True
 
 
 def _run() -> None:
@@ -62,4 +64,5 @@ def _run() -> None:
 
 def rows() -> list[list[str]]:
     """Status table for the UI, newest first."""
-    return [[doc_id, state] for doc_id, state in reversed(status.items())]
+    # snapshot first — the worker thread mutates status while the UI timer iterates
+    return [[doc_id, state] for doc_id, state in reversed(list(status.items()))]
