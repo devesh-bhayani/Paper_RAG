@@ -104,15 +104,33 @@ with gr.Blocks(title="PAPER RAG", theme=gr.themes.Soft(), js=FORCE_DARK) as app:
         present_tab.select(lambda: gr.Dropdown(choices=store.list_docs()),
                            outputs=paper)
 
-    with gr.Tab("Library"):
+    with gr.Tab("Library") as library_tab:
         with gr.Row():
             uploads = gr.File(label="Drop PDFs here", file_count="multiple",
                               file_types=[".pdf"])
             up_course = gr.Textbox(label="Course", placeholder="e.g. cs5xx-distsys")
         status_df = gr.Dataframe(headers=["document", "status"], value=jobs.rows,
                                  interactive=False, label="Ingestion status")
+        with gr.Row():
+            del_doc = gr.Dropdown(store.list_docs(), label="Remove from index",
+                                  info="the PDF itself stays in data/library/")
+            del_btn = gr.Button("Remove", variant="stop")
+        del_msg = gr.Markdown()
+
+        def remove_fn(doc_id):
+            if not doc_id:
+                return "Pick a document first.", gr.Dropdown(), jobs.rows()
+            n = store.delete_doc(doc_id)
+            jobs.status.pop(doc_id, None)
+            return (f"Removed **{doc_id}** ({n} chunks). The PDF is still in "
+                    f"`data/library/` — re-upload or re-ingest to index it again.",
+                    gr.Dropdown(choices=store.list_docs(), value=None), jobs.rows())
+
         uploads.upload(upload_fn, inputs=[uploads, up_course],
                        outputs=[status_df, course])
+        del_btn.click(remove_fn, inputs=del_doc, outputs=[del_msg, del_doc, status_df])
+        library_tab.select(lambda: gr.Dropdown(choices=store.list_docs()),
+                           outputs=del_doc)
         gr.Timer(2).tick(lambda: jobs.rows(), outputs=status_df)
 
 if __name__ == "__main__":

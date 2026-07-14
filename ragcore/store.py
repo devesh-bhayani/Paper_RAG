@@ -43,6 +43,22 @@ def ensure_fts(table: lancedb.table.Table) -> None:
     table.create_fts_index("text", use_tantivy=False, replace=True)
 
 
+def delete_doc(doc_id: str) -> int:
+    """Drop a document's chunks from the index and its staging cache, so a re-ingest
+    re-parses the (possibly corrected) PDF. The source PDF is never touched.
+    Returns the number of chunks removed."""
+    from ragcore.ingest import cache_path  # local: ingest imports store at module level
+
+    table = open_table()
+    before = table.count_rows()
+    table.delete(f"doc_id = '{_escape(doc_id)}'")
+    removed = before - table.count_rows()
+    if removed and table.count_rows():  # FTS index can't be built on an empty table
+        ensure_fts(table)
+    cache_path(config.LIBRARY_DIR / doc_id).unlink(missing_ok=True)
+    return removed
+
+
 def _escape(val: str) -> str:
     """SQL-style single-quote escaping for filter values (filenames may contain ')."""
     return val.replace("'", "''")

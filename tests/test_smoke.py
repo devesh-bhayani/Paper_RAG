@@ -1,5 +1,6 @@
 """Phase 1 gate: ingest whatever is in data/library, assert chunks landed sanely.
 
+Needs Ollama running + bge-m3 pulled. Fetches/ingests a fixture on first run.
 Run:  python tests/test_smoke.py
 """
 
@@ -8,6 +9,8 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import fixtures
 
 import config
 from ragcore import ingest, store
@@ -22,6 +25,7 @@ def main() -> None:
     assert "/" not in a.name and "\\" not in a.name, f"separator in filename: {a.name}"
     print(f"cache_path OK: {a.name} != {b.name}")
 
+    fixtures.ensure_pdf(fixtures.ATTENTION)  # tables + math to exercise content_kind
     pdfs = list(config.LIBRARY_DIR.rglob("*.pdf"))
     assert pdfs, f"put at least one PDF under {config.LIBRARY_DIR} first"
 

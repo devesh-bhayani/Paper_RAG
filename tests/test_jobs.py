@@ -1,6 +1,10 @@
-"""Phase 4 gate (queue half): submit a new PDF, watch it move through states to indexed.
+"""Gate: async ingestion queue + delete/re-index path.
 
-Run:  python tests/test_jobs.py <path-to-new.pdf>
+A PDF must walk queued -> parsing -> embedding -> indexed, and store.delete_doc must
+remove it cleanly so it can be re-indexed.
+
+Needs Ollama running + bge-m3 pulled. Fetches its fixture on first run.
+Run:  python tests/test_jobs.py [path-to.pdf]    (default: the GRU fixture)
 """
 
 import sys
@@ -9,16 +13,29 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ragcore import jobs
+import fixtures
+from ragcore import jobs, store
 
 
 def main() -> None:
-    pdf = Path(sys.argv[1])
-    assert pdf.exists(), f"no such file: {pdf}"
+    if len(sys.argv) > 1:
+        pdf = Path(sys.argv[1])
+        assert pdf.exists(), f"no such file: {pdf}"
+    else:
+        pdf = fixtures.ensure_pdf(fixtures.GRU)
+    doc_id = f"test-uploads/{pdf.name}"
 
-    doc_id = jobs.submit(pdf, course="test-uploads")
+    # reset: the queue skips anything already indexed, so this test needs a clean slate
+    # (this also exercises the delete/re-index path)
+    removed = store.delete_doc(doc_id)
+    assert doc_id not in store.list_docs(), "delete_doc left the doc in the index"
+    print(f"delete_doc OK: removed {removed} chunks for {doc_id}")
+
+    submitted = jobs.submit(pdf, course="test-uploads")
+    assert submitted == doc_id, f"submit returned {submitted}, expected {doc_id}"
+
     seen = []
-    for _ in range(600):  # up to 10 min — parsing is the slow stage on CPU torch
+    for _ in range(600):  # up to 10 min — parsing is the slow stage
         state = jobs.status[doc_id]
         if not seen or state != seen[-1]:
             seen.append(state)
@@ -30,6 +47,7 @@ def main() -> None:
     assert seen[0] == "queued", f"first state was {seen[0]}"
     assert any(s == "parsing" for s in seen), f"never hit parsing: {seen}"
     assert seen[-1].startswith("indexed"), f"final state: {seen[-1]}"
+    assert doc_id in store.list_docs(), "re-indexed doc missing from the index"
     print(f"\nOK: {doc_id} went {' -> '.join(seen)}")
 
 

@@ -1,5 +1,7 @@
 """Phase 2 gate: expected source doc in top-5 for >= 16/20 questions.
 
+THE regression gate — run it after any retrieval/schema change.
+Needs Ollama running + bge-m3 pulled. Fetches/ingests the 6-paper corpus on first run.
 Run:  python tests/eval_retrieval.py
 """
 
@@ -9,6 +11,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import fixtures
+
 from ragcore import store
 
 GATE = 16
@@ -16,6 +20,7 @@ K = 5
 
 
 def main() -> None:
+    fixtures.ensure(fixtures.EVAL_CORPUS)
     questions = [json.loads(line) for line in
                  (Path(__file__).parent / "eval_questions.jsonl").read_text().splitlines()
                  if line.strip()]

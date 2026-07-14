@@ -81,33 +81,38 @@ to show anything): `doc_chunks` **275 ms → 10 ms (27×)**; `existing_doc_ids` 
 memory). Note: tracemalloc under-reports this badly because Arrow allocates off the
 Python heap; RSS is the honest instrument here.
 
-## 7. Test suite is order-dependent and assumes a pre-populated environment
+## 7. ~~Test suite is order-dependent and assumes a pre-populated environment~~ — **FIXED 2026-07-15**
 
-**What:** All test scripts require: Ollama running, four models pulled, and an already
-built index. Worse, `tests/test_present.py` hardcodes `test-uploads\gru-eval.pdf` — a
-document that only exists because `tests/test_jobs.py` was once run manually with a
-downloaded fixture. A fresh clone cannot run the gates in any order.
-**Where:** `tests/test_present.py` (SMALL_DOC), `tests/test_jobs.py` (takes an
-arbitrary PDF argv), all tests implicitly.
-**Why it matters:** The gates are the project's only regression net. If they can't run
-from a clean state, they quietly stop being run.
-**Fix (single task):** Add a `tests/conftest-like` helper (plain function, no pytest)
-`ensure_fixture()` that downloads `https://arxiv.org/pdf/1412.3555` into
-`data/library/test-uploads/gru-eval.pdf` and ingests it if missing; call it at the top
-of `test_present.py` and `test_jobs.py` (making test_jobs's argv optional). Document
-"requires Ollama + models" at the top of each script.
+**What it was:** Gates assumed an already-built index; `test_present.py` hardcoded a
+doc that only existed because someone had once run `test_jobs.py` by hand. A fresh
+clone couldn't run them in any order.
+**Fix applied:** `tests/fixtures.py` maps doc_id → arxiv URL for the whole test corpus
+(6 classic papers + the GRU paper) with `ensure_pdf()` (download) and `ensure()`
+(download + ingest what's missing). All four gates call it and now self-heal:
+`eval_retrieval` → `EVAL_CORPUS`, `test_present` → GRU + attention, `test_smoke` →
+attention, `test_jobs` → GRU with argv now optional. `test_jobs` resets itself via
+`store.delete_doc` (gap #8), so it's repeatable rather than one-shot.
+**Verified for real:** deleted `gan.pdf` outright (PDF + index rows + staging cache),
+then ran `eval_retrieval` cold — it fetched, parsed (27 s), indexed 25 chunks, and
+scored 20/20 with zero manual setup. Needs network on first run only.
+**Note:** gates deliberately run against the real `data/` store, not a sandbox — they
+assert on the same index the app uses. Running `test_jobs` re-parses the GRU fixture
+(~30 s) because delete drops its staging cache.
 
-## 8. No way to remove or re-index a document
+## 8. ~~No way to remove or re-index a document~~ — **FIXED 2026-07-15**
 
-**What:** Ingestion is append-only. A corrected PDF re-uploaded under the same name is
-*skipped* (idempotency check), and there is no delete path at all — removing a bad
-document means wiping `data/lancedb` and re-ingesting everything.
-**Where:** absence in `ragcore/store.py` / `app.py` Library tab.
-**Why it matters:** First time the user ingests a corrupted or wrong-version PDF,
-they'll discover the only fix is a full rebuild (minutes now, hours at textbook scale).
-**Fix (single task):** Add `store.delete_doc(doc_id)` using
-`table.delete(f"doc_id = '...'")` (escape per gap #3), then `ensure_fts`. Optional
-second task: a small "remove document" dropdown+button in the Library tab.
+**What it was:** Ingestion was append-only; a corrected PDF re-uploaded under the same
+name was silently skipped, and removing a bad document meant wiping the whole index.
+**Fix applied:** `store.delete_doc(doc_id)` deletes the doc's chunks (quote-escaped per
+gap #3), rebuilds FTS (skipped when the table ends up empty — lance can't index
+nothing), and **drops the staging cache** so a re-ingest re-parses the corrected PDF
+rather than replaying the stale parse. The source PDF is never touched (per CLAUDE.md's
+never-delete rule). Library tab gained a "Remove from index" dropdown + Remove button
+whose message spells out that the PDF stays in `data/library/`.
+**Verified:** `test_jobs` now covers the whole delete → re-parse → re-index cycle;
+`app.remove_fn` exercised directly (guard path, real path, dropdown refresh, restore).
+**Re-index recipe:** Remove in the Library tab → replace the PDF on disk → re-upload
+(or `uv run python -m ragcore.ingest`).
 
 ## 9. `doc_type == "code"` is documented but unreachable
 

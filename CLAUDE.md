@@ -14,11 +14,12 @@ uv run python -m ragcore.ingest          # ingest everything new under data/libr
 uv run python bench.py                   # tok/s per model tier + GPU-residency check
 
 # gates (no pytest — plain assert scripts, run directly; need Ollama up + models pulled)
+# they fetch/ingest their own fixtures via tests/fixtures.py (network on first run only)
 uv run python tests/test_smoke.py        # ingest pipeline
 uv run python tests/eval_retrieval.py    # 20-question retrieval accuracy — THE regression gate
 uv run python tests/test_generate.py     # citation + refusal contract
 uv run python tests/test_present.py      # whole-paper mode, figures, deck structure
-uv run python tests/test_jobs.py <pdf>   # async ingestion queue
+uv run python tests/test_jobs.py [pdf]   # ingestion queue + delete/re-index cycle
 ```
 
 Dev server for the preview pane: `.claude/launch.json` name `paper-rag`.
@@ -60,8 +61,12 @@ Run the retrieval eval before declaring any retrieval/schema change done.
   from HF); offline after that.
 - Windows console is cp1252 — print model output only after
   `sys.stdout.reconfigure(encoding="utf-8")` (see `generate.main`).
-- Re-uploading a same-named PDF is *skipped* (idempotent by doc_id); there is no
-  delete/re-index path yet (GAPS.md #8).
+- Re-uploading a same-named PDF is *skipped* (idempotent by doc_id). To re-index a
+  corrected PDF: Library tab → "Remove from index" (or `store.delete_doc(doc_id)`) →
+  replace the file → re-ingest. `delete_doc` also drops the staging cache, which is
+  what forces the re-parse; removing rows alone would replay the stale parse.
+- Gates run against the real `data/` store (not a sandbox) and self-heal missing
+  fixtures. `test_jobs` deletes + re-parses the GRU fixture each run (~30 s) by design.
 
 ## Rules
 

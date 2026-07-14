@@ -1,5 +1,6 @@
 """Gate for whole-paper mode + presentation kit.
 
+Needs Ollama running + models pulled. Fetches/ingests its fixtures on first run.
 Run:  python tests/test_present.py
 """
 
@@ -9,11 +10,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import fixtures
+
 import config
 from ragcore import generate, present, store
 
-SMALL_DOC = "test-uploads/gru-eval.pdf"
-DECK_DOC = "classic-papers/attention-is-all-you-need.pdf"
+SMALL_DOC = fixtures.GRU
+DECK_DOC = fixtures.ATTENTION
 
 
 def main() -> None:
@@ -29,6 +32,7 @@ def main() -> None:
         ([{"text": "x" * 10**6}], 0), "a single oversized chunk must still be kept"
     print(f"fit_chunks OK: full paper kept, huge paper kept {len(kept)} dropped {dropped}")
 
+    fixtures.ensure([SMALL_DOC, DECK_DOC])
     docs = store.list_docs()
     assert SMALL_DOC in docs and DECK_DOC in docs, f"missing test docs in {docs}"
 
