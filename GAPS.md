@@ -114,34 +114,27 @@ whose message spells out that the PDF stays in `data/library/`.
 **Re-index recipe:** Remove in the Library tab → replace the PDF on disk → re-upload
 (or `uv run python -m ragcore.ingest`).
 
-## 9. `doc_type == "code"` is documented but unreachable
+## 9. ~~`doc_type == "code"` is documented but unreachable~~ — **FIXED 2026-07-18**
 
-**What:** The schema and design docs describe `doc_type ∈ {textbook, paper, code}`, but
-`ingest.chunk_doc` only ever assigns `"textbook"` (>150 pages) or `"paper"`. There is
-also no ingestion path for source-code files at all, despite "codebases" appearing in
-the project pitch.
-**Where:** `ragcore/ingest.py::chunk_doc` (the ponytail-commented heuristic),
-`ragcore/store.py` schema comment, README/SYSTEM_DESIGN.
-**Why it matters:** A doc_type filter for "code" in any future UI would silently match
-nothing; the docs over-promise.
-**Fix (single task):** Either delete `code` from the documented enum (README,
-SYSTEM_DESIGN, store.py comment) — the honest ponytail fix — or add a
-`data/library/**/code/` convention later. Pick the deletion unless codebase ingestion
-is actually scheduled.
+**What it was:** Docs promised `doc_type ∈ {textbook, paper, code}` and "codebases" in
+the pitch, but no code path ever produced `"code"` and no source-file ingestion exists.
+**Fix applied:** The honest deletion — enum is now `{textbook, paper}` in
+`store.py`'s schema comment and SYSTEM_DESIGN.md; the pitch line now says explicitly
+that code *chunks* inside PDFs are labeled (`content_kind=code`, which works) while
+source-code *file* ingestion is not built. `content_kind` handling untouched.
+Revisit only if codebase ingestion actually gets scheduled.
 
-## 10. `gpu_lock` is held for the entire streamed generation
+## 10. ~~`gpu_lock` held for the entire streamed generation~~ — **FIXED 2026-07-18**
 
-**What:** `app.py::chat_fn` and `deck_fn` hold `jobs.gpu_lock` across the whole token
-stream (potentially minutes for a deck). Ingestion embedding — and any second chat
-request — blocks for the duration. Gradio's own queue already serializes same-endpoint
-requests, so the lock's real marginal effect is pausing ingestion.
-**Where:** `app.py::chat_fn`, `app.py::deck_fn`, `ragcore/jobs.py::gpu_lock`.
-**Why it matters:** Mostly by design (8 GB card, one model resident), but nobody
-documented that a 25-minute-deck generation freezes the Library tab's pipeline, and on
-the Mac profile (32 GB) the lock becomes pure overhead.
-**Fix (single task):** Document the behavior in PROJECT.md/CLAUDE.md (done) and make
-the lock a no-op on the mac profile: `gpu_lock = threading.Lock() if config.PROFILE ==
-"pc" else contextlib.nullcontext()` — adjust the two `with` sites accordingly.
+**What it was:** chat/deck streaming held `gpu_lock` for minutes, pausing ingestion
+embedding — correct on the 8 GB pc (one resident model) but pure overhead on the
+32 GB mac, and undocumented either way.
+**Fix applied:** `gpu_lock` is now profile-dependent: a real `threading.Lock` on pc,
+`contextlib.nullcontext()` on mac (both models fit resident there). Call sites
+unchanged — they keep wrapping, the mac lock just doesn't exclude. Behavior documented
+in CLAUDE.md ("a long deck generation pauses ingestion embedding on pc — deliberate").
+**Verified:** pc path mutually excludes (non-blocking acquire fails while held); mac
+path (config reload) allows nested/concurrent entry; `test_jobs` full cycle passes.
 
 ## 11. No quality eval for generation or decks — only structure is gated
 

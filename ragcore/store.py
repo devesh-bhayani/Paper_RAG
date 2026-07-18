@@ -12,7 +12,7 @@ SCHEMA = pa.schema([
     pa.field("doc_id", pa.string()),
     pa.field("course", pa.string()),
     pa.field("topic", pa.string()),
-    pa.field("doc_type", pa.string()),      # textbook | paper | code
+    pa.field("doc_type", pa.string()),      # textbook | paper (page-count heuristic)
     pa.field("content_kind", pa.string()),  # prose | code | table | math
     pa.field("section", pa.string()),
     pa.field("page", pa.int32()),

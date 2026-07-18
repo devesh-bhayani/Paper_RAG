@@ -81,6 +81,8 @@ Run the retrieval eval before declaring any retrieval/schema change done.
 - Quality upgrades (reranker, query rewriting, etc.) are banned until
   `eval_retrieval.py` shows a deficit (currently 20/20).
 - `gpu_lock` (in `jobs.py`) must wrap anything that hits the LLM or embedder from the
-  UI — one 8 GB GPU, one resident model.
+  UI — one 8 GB GPU, one resident model. It is deliberately a `nullcontext` on the mac
+  profile (32 GB fits both models); keep wrapping call sites anyway. Known effect on pc:
+  a long deck generation pauses ingestion embedding until the stream ends.
 - Mac migration (~Aug 2026): flip `PROFILE` in config.py, replace the pyproject torch
   block, pull mac-tier models. (doc_id separators already posix — GAPS.md #1 fixed.)

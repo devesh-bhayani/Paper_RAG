@@ -1,6 +1,7 @@
 # PAPER_RAG — System Design
 
-100% offline RAG assistant for dense CS textbooks, papers, and codebases.
+100% offline RAG assistant for dense CS textbooks and papers. (Code *chunks* inside
+PDFs are labeled `content_kind=code`; ingesting source-code *files* is not built.)
 
 **Two hardware profiles, one codebase:**
 - `pc` (now): Windows, RTX 4060 Ti 8 GB VRAM, CUDA. Development + daily use until the Mac arrives.
@@ -142,7 +143,7 @@ paper_rag/
 Chunk record schema (one LanceDB table, that's all):
 
 ```
-vector(1024) | text | doc_id | course | topic | doc_type{textbook,paper,code}
+vector(1024) | text | doc_id | course | topic | doc_type{textbook,paper}
 | content_kind{prose,code,table,math} | section | page | source_path
 ```
 

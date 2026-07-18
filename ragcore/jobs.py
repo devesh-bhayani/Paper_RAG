@@ -3,6 +3,7 @@
 States: queued -> parsing -> embedding -> indexed (n chunks) | failed: <err> | skipped
 """
 
+import contextlib
 import queue
 import shutil
 import threading
@@ -11,8 +12,11 @@ from pathlib import Path
 import config
 from ragcore import ingest, store
 
-# generation and embedding share one 8 GB GPU — hold this around either
-gpu_lock = threading.Lock()
+# pc: generation and embedding fight over one 8 GB GPU (MAX_LOADED_MODELS=1) — hold
+# this around either. A deck generation therefore pauses ingestion embedding for its
+# whole stream: deliberate. mac (32 GB unified, both models resident): no-op lock.
+gpu_lock = (threading.Lock() if config.PROFILE == "pc"
+            else contextlib.nullcontext())
 
 status: dict[str, str] = {}  # doc_id -> state, insertion-ordered
 _q: queue.Queue[Path] = queue.Queue()
