@@ -1,20 +1,20 @@
 {"q": "How many attention heads does the base Transformer model use?", "expect_doc": "attention"}
 {"q": "What positional encoding scheme lets the model use sequence order without recurrence?", "expect_doc": "attention"}
-{"q": "Why is the dot product scaled by the square root of the key dimension before the softmax?", "expect_doc": "attention"}
-{"q": "What BLEU score did the big model reach on WMT 2014 English-to-German translation?", "expect_doc": "attention"}
+{"q": "Why is the dot product scaled by the square root of the key dimension before the softmax?", "expect_doc": "attention", "expect_keywords": ["gradient"]}
+{"q": "What BLEU score did the big model reach on WMT 2014 English-to-German translation?", "expect_doc": "attention", "expect_keywords": ["28.4"]}
 {"q": "Which pretraining objective randomly masks tokens and predicts them from bidirectional context?", "expect_doc": "bert"}
 {"q": "What is the [CLS] token's final hidden state used for in classification tasks?", "expect_doc": "bert"}
 {"q": "What is the next sentence prediction task and why include it during pretraining?", "expect_doc": "bert"}
 {"q": "How do the base and large bidirectional encoder models differ in layers and hidden size?", "expect_doc": "bert"}
 {"q": "What degradation problem shows up when you stack more and more plain convolutional layers?", "expect_doc": "resnet"}
 {"q": "How do identity shortcut connections make very deep networks easier to optimize?", "expect_doc": "resnet"}
-{"q": "How deep was the network that won the ILSVRC 2015 classification task?", "expect_doc": "resnet"}
+{"q": "How deep was the network that won the ILSVRC 2015 classification task?", "expect_doc": "resnet", "expect_keywords": ["152"]}
 {"q": "What minimax two-player game trains a generative model against a discriminative model?", "expect_doc": "gan"}
 {"q": "Why does the discriminator output 1/2 everywhere at the global optimum?", "expect_doc": "gan"}
 {"q": "What does the generator map input noise vectors into during adversarial training?", "expect_doc": "gan"}
 {"q": "Which optimizer computes bias-corrected first and second moment estimates of the gradients?", "expect_doc": "adam"}
-{"q": "What default hyperparameter values are recommended for beta1, beta2 and epsilon?", "expect_doc": "adam"}
+{"q": "What default hyperparameter values are recommended for beta1, beta2 and epsilon?", "expect_doc": "adam", "expect_keywords": ["0.9", "0.999"]}
 {"q": "How does this adaptive method relate to AdaGrad and RMSProp?", "expect_doc": "adam"}
 {"q": "Which architecture predicts surrounding context words from the current word?", "expect_doc": "word2vec"}
 {"q": "On what semantic and syntactic analogy task were the learned word vectors evaluated?", "expect_doc": "word2vec"}
-{"q": "What famous vector arithmetic gives queen from king minus man plus woman?", "expect_doc": "word2vec"}
+{"q": "Which word is the vector King - Man + Woman closest to in the learned embedding space?", "expect_doc": "word2vec", "expect_keywords": ["queen"]}

@@ -66,7 +66,25 @@ def main() -> None:
     sections = ["Introduction", "Background", "Methodology", "Evaluation", "Discussion"]
     found = [s for s in sections if s.lower() in md.lower()]
     assert len(found) >= 4, f"required course sections missing: found only {found}"
-    print(f"deck OK: {deck} ({separators} separators, sections {found})")
+
+    # methodology depth — the rubric's heaviest criterion (3 pts): the Methodology
+    # span must be >= max(2, 25%) of content slides (figure-appendix excluded)
+    parts = [p.strip() for p in re.split(r"^---\s*$", md, flags=re.M)
+             if p.strip().startswith("## ")]
+    content = [s for s in parts if not all(
+        line.strip().startswith("![](") for line in s.splitlines()[1:] if line.strip())]
+    titles = [s.splitlines()[0] for s in content]
+    meth_start = next(i for i, t in enumerate(titles) if "methodology" in t.lower())
+    meth_end = next((i for i in range(meth_start + 1, len(titles))
+                     if re.search(r"evaluation|thoughts|discussion", titles[i], re.I)),
+                    len(content))
+    meth_count = meth_end - meth_start
+    need = max(2, round(0.25 * len(content)))
+    assert meth_count >= need, \
+        f"Methodology too thin: {meth_count} of {len(content)} content slides " \
+        f"(need >= {need}); titles: {titles}"
+    print(f"deck OK: {deck} ({separators} separators, sections {found}, "
+          f"methodology {meth_count}/{len(content)} slides)")
 
     print("\nPresent gate: PASS")
 

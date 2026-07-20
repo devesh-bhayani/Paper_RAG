@@ -24,9 +24,10 @@ opening with an '## <Section>' slide:
 1. Introduction — what the paper is and its main goals, articulated with total \
 clarity in the first two slides (graded: Clarity, 3 pts).
 2. Background — the prior approaches and concepts needed to follow the paper.
-3. Methodology — THE MOST IMPORTANT SECTION; allocate roughly 40% of all slides to \
-it. Go deep: the key idea, how the method works step by step, the design choices and \
-WHY they were made, not just what they are (graded: Depth of Analysis, 3 pts).
+3. Methodology — THE MOST IMPORTANT SECTION; dedicate AT LEAST {meth_slides} \
+consecutive slides to it (count them). Go deep: the key idea, how the method works \
+step by step, the design choices and WHY they were made, not just what they are \
+(graded: Depth of Analysis, 3 pts).
 4. Evaluation — experimental setup and results; name the specific tables/figures and \
 their page numbers.
 5. Your Thoughts & Discussion — the presenters' OWN critical analysis (strengths, \
@@ -123,7 +124,9 @@ def deck_stream(doc_id: str, talk_length: str = "15 min",
         fig_note = ("No image files are available — reference figures as placeholders "
                     "like [see Figure 2, p.4].")
 
-    system = DECK_SYSTEM.format(n_slides=config.TALK_LENGTHS[talk_length],
+    n_slides = config.TALK_LENGTHS[talk_length]
+    system = DECK_SYSTEM.format(n_slides=n_slides,
+                                meth_slides=max(3, round(0.3 * n_slides)),
                                 fig_note=fig_note)
     parts = ollama.chat(
         model=config.TIERS[tier],

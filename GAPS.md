@@ -136,21 +136,23 @@ in CLAUDE.md ("a long deck generation pauses ingestion embedding on pc — delib
 **Verified:** pc path mutually excludes (non-blocking acquire fails while held); mac
 path (config reload) allows nested/concurrent entry; `test_jobs` full cycle passes.
 
-## 11. No quality eval for generation or decks — only structure is gated
+## 11. ~~No quality eval for generation or decks — only structure gated~~ — **FIXED 2026-07-20**
 
-**What:** Retrieval has a real 20-question accuracy gate. Generation is gated only on
-"has citations, refuses off-corpus"; decks only on "has the five section names and
-enough separators." Nothing measures whether answers are *faithful* to the cited
-chunks or whether the Methodology section is actually deep — the thing the course
-grades hardest.
-**Where:** `tests/test_generate.py`, `tests/test_present.py`.
-**Why it matters:** The 8B model already demonstrably under-delivers on one prompt
-instruction (it ignored the 40% Methodology allocation — 2 of 9 slides in the verified
-run). Quality regressions will be invisible to the current gates.
-**Fix (single task):** Add a cheap proportional check to `test_present.py`: count
-slides between `## Methodology` and `## Evaluation` and assert ≥ 25% of content
-slides. For faithfulness, a follow-up task: 5 QA pairs in `eval_questions.jsonl`
-extended with `expect_keywords`, asserted against the generated answer text.
+**What it was:** Nothing measured answer faithfulness or Methodology depth (rubric's
+heaviest criterion); the 8B demonstrably ignored the 40% allocation (2/9 slides).
+**Fix applied:**
+- **Deck depth:** DECK_SYSTEM now demands an explicit slide count
+  (`max(3, 30% of n_slides)`) instead of a percentage — concrete numbers beat
+  proportions for small models. `test_present.py` parses the deck, counts the
+  Methodology span (figure-appendix excluded), asserts ≥ max(2, 25% of content
+  slides). Measured effect: 2/9 (22%) before → **4/12 (33%)** after.
+- **Faithfulness:** 5 questions in `eval_questions.jsonl` carry `expect_keywords` —
+  facts stated in the paper but absent from the question (no echo credit): gradient,
+  28.4 BLEU, 152 layers, 0.9/0.999, queen. `test_generate.py` asserts each appears in
+  the generated answer. One question needed rewording twice: contained "queen" (echo),
+  then too indirect (model answered correctly without the word). Lesson: keyword
+  questions must *ask for* the fact directly without *containing* it.
+**Verified:** 5/5 faithful, retrieval still 20/20 after rewording, present gate PASS.
 
 ## 12. Miscellaneous small items
 
