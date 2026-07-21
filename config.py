@@ -19,7 +19,7 @@ TIERS = {
     "pc": {
         "daily": "qwen3:8b",
         "code": "qwen2.5-coder:7b",
-        "utility": "qwen3:4b",
+        "utility": "qwen3:4b",   # fast/small; selectable in the UI, nothing auto-uses it
         "quality": "qwen3:14b",  # partial CPU offload — patience tier
     },
     "mac": {

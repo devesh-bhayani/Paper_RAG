@@ -23,7 +23,17 @@ uv run python tests/test_jobs.py [pdf]   # ingestion queue + delete/re-index cyc
 ```
 
 Dev server for the preview pane: `.claude/launch.json` name `paper-rag`.
-Run the retrieval eval before declaring any retrieval/schema change done.
+
+**No CI exists** (gates need a GPU + Ollama; a runner has neither). Manual pre-push
+checklist — the blast radius decides how much you run:
+
+| changed | run |
+|---|---|
+| retrieval, `store.SCHEMA`, embeddings, chunking | `eval_retrieval.py` (**never skip**) + `test_smoke.py` |
+| prompts, tiers, generation | `test_generate.py` |
+| `present.py`, deck format, whole-paper mode | `test_present.py` |
+| `jobs.py`, upload/delete paths | `test_jobs.py` |
+| docs only | nothing |
 
 ## Conventions
 

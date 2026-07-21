@@ -154,26 +154,29 @@ heaviest criterion); the 8B demonstrably ignored the 40% allocation (2/9 slides)
   questions must *ask for* the fact directly without *containing* it.
 **Verified:** 5/5 faithful, retrieval still 20/20 after rewording, present gate PASS.
 
-## 12. Miscellaneous small items
+## 12. ~~Miscellaneous small items~~ — **FIXED 2026-07-21**
 
-- **Single-turn chat**: `chat_fn` ignores Gradio's `history`; every question is
-  independent. Follow-ups like "explain that more simply" silently lack context.
-  Documented nowhere user-visible. *Fix: one line in the README; real fix (include
-  history in the prompt) is a design decision for later.*
-- **`utility` tier is pulled but unused** — `config.TIERS["pc"]["utility"]` (qwen3:4b)
-  has no code path (query rewriting was deferred to Phase 5). Harmless; either delete
-  the tier or leave with a comment. `bench.py` still references qwen3:14b which may
-  not be pulled — it skips gracefully by design.
-- **README env-var instructions are bash-only** (`export ...`) while the primary
-  platform is Windows; the Windows path is a parenthetical. *Fix: add the two-line
-  PowerShell/`setx` equivalent.*
-- **HF unauthenticated-rate-limit warning** during chunker tokenizer fetch — cosmetic;
-  optionally document `HF_TOKEN` in README.
-- **`data/exports` collides on paper stems** the same way staging does (gap #4), e.g.
-  two courses both containing `notes.pdf` share one export dir. Same fix pattern.
-- **No CI**: gates run only when someone remembers. A GitHub Action can't run them
-  (needs Ollama + GPU); a pre-push hook running `eval_retrieval.py` locally is the
-  practical option. *Fix: document as a manual pre-release checklist in CLAUDE.md
-  (done) rather than pretending CI exists.*
-- **Secrets**: none in the repo (verified — no keys, tokens, or URLs beyond arxiv/
-  pytorch indexes). GitHub auth lives in the user's keyring, outside the repo. ✔
+- **`data/exports` stem collision** (the only code bug in this batch): `export_dir`
+  used `Path(doc_id).stem`, so two courses each holding a `notes.pdf` overwrote each
+  other's deck and figures. Now flattens the full doc_id like the staging cache
+  (`classic-papers__attention-is-all-you-need`). Existing export dir renamed in place —
+  10 figures and the deck survived, no re-parse. Verified + present gate PASS.
+  *(Earlier deferred as "ugly path beats mild data loss" — reversed: consistency with
+  staging is worth more than a pretty directory name nobody browses.)*
+- **Single-turn chat** documented in README ("Good to know": each turn is an
+  independent retrieval, follow-ups like *"explain that more simply"* won't work).
+  Real fix (history in the prompt + query rewriting) remains a design decision — it
+  costs context window on an 8 GB card and complicates the citation contract.
+- **Windows env vars**: README now has the `setx` block plus the restart-the-tray-app
+  note, instead of bash `export` with a Windows parenthetical.
+- **`HF_TOKEN`** documented in README as the way to silence the unauthenticated
+  rate-limit warning.
+- **`utility` tier**: not dead — it's selectable in the UI tier dropdown (`list(TIERS)`
+  populates it). Comment in `config.py` says so; README explains when to pick each tier.
+- **No CI**: CLAUDE.md now carries a per-blast-radius pre-push table (schema/retrieval
+  → never skip `eval_retrieval.py`; docs → nothing), and the README states plainly that
+  no CI exists and why (a runner has no GPU and no Ollama).
+- **`test_jobs.py <pdf>`** in the README was stale since gap #7 made the argument
+  optional — corrected.
+- **Secrets**: none in the repo (verified — no keys/tokens; only arxiv + pytorch index
+  URLs). GitHub auth lives in the user's keyring, outside the repo. ✔

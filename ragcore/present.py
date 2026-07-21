@@ -54,7 +54,9 @@ splitting a 3-person talk, add HANDOFF to the notes.
 
 
 def export_dir(doc_id: str) -> Path:
-    return config.EXPORT_DIR / Path(doc_id).stem
+    """Flatten the full doc_id like the staging cache does — two courses can each hold
+    a notes.pdf and must not overwrite each other's deck/figures."""
+    return config.EXPORT_DIR / doc_id.removesuffix(".pdf").replace("/", "__")
 
 
 def extract_figures(doc_id: str) -> list[Path]:

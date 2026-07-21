@@ -32,13 +32,12 @@ ollama pull bge-m3
 # optional, larger/slower "quality" tier — worth it for Methodology-heavy decks
 ollama pull qwen3:14b
 
-# 3. recommended Ollama env vars (persist these, e.g. in your shell profile)
-#    Windows: set via System Properties > Environment Variables, then restart ollama
+# 3. recommended Ollama env vars — macOS/Linux (persist in your shell profile)
 export OLLAMA_FLASH_ATTENTION=1
 export OLLAMA_KV_CACHE_TYPE=q8_0
 export OLLAMA_MAX_LOADED_MODELS=1   # raise if you have >8 GB VRAM
 
-# 4. add your PDFs, one folder per course
+# 4. add your PDFs, one folder per course (or drag them into the Library tab)
 mkdir -p data/library/my-course
 cp ~/Downloads/some-paper.pdf data/library/my-course/
 
@@ -49,10 +48,31 @@ uv run python -m ragcore.ingest
 uv run python app.py
 ```
 
+On **Windows** (the primary profile), set the step-3 vars once with `setx`, then
+restart the Ollama tray app — it only reads them at startup:
+
+```powershell
+setx OLLAMA_FLASH_ATTENTION 1
+setx OLLAMA_KV_CACHE_TYPE q8_0
+setx OLLAMA_MAX_LOADED_MODELS 1
+```
+
 Open **http://127.0.0.1:7860**. Three tabs: **Chat** (ask questions, optionally scoped
 to one course/document, or "whole paper" mode), **Present** (pick a paper, extract
 figures, generate a slide deck), **Library** (drag-and-drop new PDFs, watch ingestion
-status live).
+status live, remove a document to re-index a corrected PDF).
+
+Good to know:
+
+- **Chat turns are independent** — each question is answered from a fresh retrieval,
+  with no memory of the previous answer. Follow-ups like *"explain that more simply"*
+  won't work; re-ask the full question instead.
+- **First run needs network once** (Docling models + the bge-m3 tokenizer from
+  HuggingFace); everything after that is offline. The unauthenticated-rate-limit
+  warning HuggingFace prints is harmless — set `HF_TOKEN` to silence it.
+- **Model tier** in the Chat/Present dropdowns picks the answering model: `daily` is
+  the balanced default, `utility` is the fast small one, `quality` is slow but best for
+  Methodology-heavy decks (it's the one worth waiting for before a real presentation).
 
 ## Verifying it works
 
@@ -61,9 +81,14 @@ uv run python bench.py                  # tokens/sec per model tier, checks GPU 
 uv run python tests/test_smoke.py       # ingest -> chunks land with correct structure
 uv run python tests/eval_retrieval.py   # 20-question retrieval accuracy gate
 uv run python tests/test_generate.py    # citations are real, off-corpus questions refuse
-uv run python tests/test_jobs.py <pdf>  # async ingestion queue reaches "indexed"
+uv run python tests/test_jobs.py        # async queue + delete/re-index cycle
 uv run python tests/test_present.py     # whole-paper mode + deck generation gate
 ```
+
+Gates need Ollama up and the models pulled; they fetch and ingest their own fixtures on
+first run (network once). They assert against the real `data/` store, not a sandbox.
+There is no CI — a GitHub Action can't run them (no GPU, no Ollama), so **run
+`eval_retrieval.py` by hand before pushing any retrieval or schema change**.
 
 ## Repo layout
 
