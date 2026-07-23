@@ -171,6 +171,28 @@ def _insert_handoffs(text: str) -> str:
     return text
 
 
+def _fig_label(filename: str) -> str:
+    """'fig-04.png' -> 'Figure 4', 'table-02.png' -> 'Table 2'; else the filename."""
+    m = re.match(r"(fig|table)-0*(\d+)\.png$", filename)
+    if not m:
+        return filename
+    return f"{'Figure' if m.group(1) == 'fig' else 'Table'} {m.group(2)}"
+
+
+def _figure_slides(out: Path, room: int) -> str:
+    """Appendix slides for extracted figures: short label title, full caption below the
+    image (never truncated). Empty string if no room or no manifest."""
+    manifest = out / "figures" / "manifest.tsv"
+    if room <= 0 or not manifest.exists():
+        return ""
+    slides = []
+    for line in manifest.read_text(encoding="utf-8").splitlines()[:min(6, room)]:
+        name, _, caption = line.partition("\t")
+        cap = "" if not caption or caption == "no caption" else f"\n\n*{caption}*"
+        slides.append(f"\n---\n\n## {_fig_label(name)}\n\n![](figures/{name}){cap}\n")
+    return "".join(slides)
+
+
 def save_deck(doc_id: str, text: str, max_slides: int | None = None) -> Path:
     """Write deck.md. Appends figure slides when the model embedded none — but never
     past the professor's slide cap, which is graded."""
@@ -179,18 +201,10 @@ def save_deck(doc_id: str, text: str, max_slides: int | None = None) -> Path:
     text = _insert_handoffs(text)
     # ponytail: deterministic figure appendix — the 8B ignores embed instructions,
     # so guarantee the figures land in the deck; user deletes what they don't want
-    manifest = out / "figures" / "manifest.tsv"
-    if "](figures/" not in text and manifest.exists():
+    if "](figures/" not in text:
         room = 6 if max_slides is None else max_slides - len(re.findall(r"^## ", text,
-                                                                       flags=re.M))
-        lines = manifest.read_text(encoding="utf-8").splitlines()[:max(0, min(6, room))]
-        slides = []
-        for line in lines:
-            name, _, caption = line.partition("\t")
-            title = caption[:80] if caption and caption != "no caption" else name
-            slides.append(f"\n---\n\n## {title}\n\n![](figures/{name})\n")
-        if slides:
-            text += "\n" + "".join(slides)
+                                                                        flags=re.M))
+        text += "\n" + _figure_slides(out, max(0, room))
     # ponytail: warn, never auto-trim — cutting slides blind would delete graded
     # Methodology/Discussion content the user can't see was lost (cf. GAPS #2)
     n = len(re.findall(r"^## ", text, flags=re.M))

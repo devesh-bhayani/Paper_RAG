@@ -32,6 +32,12 @@ def main() -> None:
         ([{"text": "x" * 10**6}], 0), "a single oversized chunk must still be kept"
     print(f"fit_chunks OK: full paper kept, huge paper kept {len(kept)} dropped {dropped}")
 
+    # figure labels (pure): clean titles from filenames, full captions never truncated
+    assert present._fig_label("fig-04.png") == "Figure 4"
+    assert present._fig_label("table-02.png") == "Table 2"
+    assert present._insert_handoffs("## Methodology\n<!-- notes: x -->").count("HANDOFF") == 0
+    print("fig_label OK")
+
     fixtures.ensure([SMALL_DOC, DECK_DOC])
     docs = store.list_docs()
     assert SMALL_DOC in docs and DECK_DOC in docs, f"missing test docs in {docs}"
