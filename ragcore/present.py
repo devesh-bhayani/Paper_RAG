@@ -150,11 +150,33 @@ def deck_stream(doc_id: str, talk_length: str = config.DEFAULT_TALK,
         yield part["message"]["content"]
 
 
+_HANDOFF = "HANDOFF to next presenter."
+
+
+def _insert_handoffs(text: str) -> str:
+    """Mark the two natural 3-presenter boundaries (before Methodology, before
+    Evaluation) in the speaker notes — the model asks are ignored non-deterministically,
+    so guarantee them. No-ops on notes that already carry a HANDOFF."""
+    for section in ("## Methodology", "## Evaluation"):
+        sec = re.search(rf"^{re.escape(section)}", text, re.M)
+        if not sec:
+            continue
+        # last speaker-notes comment strictly before the section heading
+        notes = list(re.finditer(r"<!-- notes:.*?-->", text[:sec.start()], re.S))
+        if not notes or _HANDOFF in notes[-1].group(0):
+            continue
+        last = notes[-1]
+        patched = last.group(0)[:-3].rstrip() + f" {_HANDOFF} -->"
+        text = text[:last.start()] + patched + text[last.end():]
+    return text
+
+
 def save_deck(doc_id: str, text: str, max_slides: int | None = None) -> Path:
     """Write deck.md. Appends figure slides when the model embedded none — but never
     past the professor's slide cap, which is graded."""
     out = export_dir(doc_id)
     out.mkdir(parents=True, exist_ok=True)
+    text = _insert_handoffs(text)
     # ponytail: deterministic figure appendix — the 8B ignores embed instructions,
     # so guarantee the figures land in the deck; user deletes what they don't want
     manifest = out / "figures" / "manifest.tsv"

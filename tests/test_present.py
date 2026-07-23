@@ -58,6 +58,9 @@ def main() -> None:
     deck = present.build_deck(DECK_DOC, talk_length=talk)
     md = deck.read_text(encoding="utf-8")
     assert "marp: true" in md, "missing Marp front-matter"
+    # 3-presenter talk: deterministic handoff markers must fire (unit test asserts
+    # exactly 2; here >=1 tolerates model section-naming variance in the gate deck)
+    assert md.count("HANDOFF") >= 1, "no HANDOFF markers inserted"
     separators = len(re.findall(r"^---\s*$", md, flags=re.M))
     assert separators >= cap // 2, f"too few slides: {separators} separators"
     # the cap is graded. Small models overshoot it, so we warn rather than trim
