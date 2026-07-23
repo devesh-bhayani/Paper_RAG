@@ -37,9 +37,12 @@ EMBED_BATCH = 32
 # measured on the 8 GB card: 24576 and 20480 both spill to CPU; 16384 is 100% GPU
 FULLDOC_NUM_CTX = {"pc": 16384, "mac": 32768}[PROFILE]
 
-# talk length -> target slide count (course format: 3 presenters,
-# 15 min for algorithm papers, 25 min for architecture papers)
-TALK_LENGTHS = {"15 min (algorithm paper)": 12, "25 min (architecture paper)": 18}
+# talk length -> HARD slide cap from the professor's instruction deck (graded):
+# ML paper = 15 min, 2-3 presenters, max 10 slides
+# AI system paper = 25 min, 3 presenters, max 14 slides
+TALK_LENGTHS = {"15 min — ML paper (max 10 slides)": 10,
+                "25 min — AI system paper (max 14 slides)": 14}
+DEFAULT_TALK = "15 min — ML paper (max 10 slides)"
 
 # ingestion thermal pacing: desktop has fans, fanless Air needs rest windows
 BATCH_DOCS = 5

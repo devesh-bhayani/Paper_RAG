@@ -5,6 +5,7 @@ Outputs land in data/exports/<paper-stem>/ :
     deck.md   (Marp markdown — renders to slides, reads as an outline)
 """
 
+import re
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -42,7 +43,8 @@ marp: true
 paginate: true
 ---
 - Separate slides with a line containing only --- (never two in a row)
-- Produce about {n_slides} slides total.
+- Produce AT MOST {n_slides} slides total — the professor enforces this cap. Do not
+  exceed it; merge content rather than adding slides.
 - Each slide: a short '## title' and at most 5 tight bullets.
 - After the bullets on every slide, add speaker notes as an HTML comment \
 (<!-- notes: ... -->), 2-4 sentences, grounded in the excerpts with page references \
@@ -103,7 +105,7 @@ def extract_figures(doc_id: str) -> list[Path]:
     return sorted(fig_dir.glob("*.png"))
 
 
-def deck_stream(doc_id: str, talk_length: str = "15 min",
+def deck_stream(doc_id: str, talk_length: str = config.DEFAULT_TALK,
                 tier: str = "daily") -> Iterator[str]:
     all_chunks = store.doc_chunks(doc_id)
     if not all_chunks:
@@ -134,7 +136,11 @@ def deck_stream(doc_id: str, talk_length: str = "15 min",
         model=config.TIERS[tier],
         messages=[{"role": "system", "content": system},
                   {"role": "user",
-                   "content": build_prompt("Write the slide deck now.", chunks)}],
+                   # cap repeated last — recency beats burying it in the system prompt
+                   "content": build_prompt(
+                       f"Write the slide deck now. Hard limit: {n_slides} slides "
+                       f"maximum ('## ' headings). Count as you go and stop at "
+                       f"{n_slides}.", chunks)}],
         options={"num_ctx": config.FULLDOC_NUM_CTX, "temperature": 0.4,
                  "num_predict": 4096},
         think=False,
@@ -144,24 +150,39 @@ def deck_stream(doc_id: str, talk_length: str = "15 min",
         yield part["message"]["content"]
 
 
-def save_deck(doc_id: str, text: str) -> Path:
+def save_deck(doc_id: str, text: str, max_slides: int | None = None) -> Path:
+    """Write deck.md. Appends figure slides when the model embedded none — but never
+    past the professor's slide cap, which is graded."""
     out = export_dir(doc_id)
     out.mkdir(parents=True, exist_ok=True)
     # ponytail: deterministic figure appendix — the 8B ignores embed instructions,
     # so guarantee the figures land in the deck; user deletes what they don't want
     manifest = out / "figures" / "manifest.tsv"
     if "](figures/" not in text and manifest.exists():
+        room = 6 if max_slides is None else max_slides - len(re.findall(r"^## ", text,
+                                                                       flags=re.M))
+        lines = manifest.read_text(encoding="utf-8").splitlines()[:max(0, min(6, room))]
         slides = []
-        for line in manifest.read_text(encoding="utf-8").splitlines()[:6]:
+        for line in lines:
             name, _, caption = line.partition("\t")
             title = caption[:80] if caption and caption != "no caption" else name
             slides.append(f"\n---\n\n## {title}\n\n![](figures/{name})\n")
-        text += "\n" + "".join(slides)
+        if slides:
+            text += "\n" + "".join(slides)
+    # ponytail: warn, never auto-trim — cutting slides blind would delete graded
+    # Methodology/Discussion content the user can't see was lost (cf. GAPS #2)
+    n = len(re.findall(r"^## ", text, flags=re.M))
+    if max_slides and n > max_slides:
+        text = (f"<!-- OVER CAP: {n} slides, professor allows {max_slides}. "
+                f"Merge or cut {n - max_slides} before submitting. The 'quality' "
+                f"model tier follows the cap better than 'daily'. -->\n\n" + text)
     path = out / "deck.md"
     path.write_text(text, encoding="utf-8")
     return path
 
 
-def build_deck(doc_id: str, talk_length: str = "15 min", tier: str = "daily") -> Path:
+def build_deck(doc_id: str, talk_length: str = config.DEFAULT_TALK,
+               tier: str = "daily") -> Path:
     """Non-streaming convenience for tests/CLI."""
-    return save_deck(doc_id, "".join(deck_stream(doc_id, talk_length, tier)))
+    return save_deck(doc_id, "".join(deck_stream(doc_id, talk_length, tier)),
+                     max_slides=config.TALK_LENGTHS[talk_length])

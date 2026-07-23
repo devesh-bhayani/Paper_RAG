@@ -73,7 +73,7 @@ with gr.Blocks(title="PAPER RAG", theme=gr.themes.Soft(), js=FORCE_DARK) as app:
         with gr.Row():
             paper = gr.Dropdown(store.list_docs(), label="Paper")
             talk_len = gr.Dropdown(list(config.TALK_LENGTHS),
-                                   value="15 min (algorithm paper)",
+                                   value=config.DEFAULT_TALK,
                                    label="Talk length")
             p_tier = gr.Dropdown(list(config.TIERS), value="daily", label="Model tier")
         with gr.Row():
@@ -96,7 +96,8 @@ with gr.Blocks(title="PAPER RAG", theme=gr.themes.Soft(), js=FORCE_DARK) as app:
                 for t in present.deck_stream(doc_id, talk, tier_name):
                     acc += t
                     yield acc, None
-            yield acc, str(present.save_deck(doc_id, acc))
+            yield acc, str(present.save_deck(doc_id, acc,
+                                             max_slides=config.TALK_LENGTHS[talk]))
 
         fig_btn.click(figs_fn, inputs=paper, outputs=gallery)
         deck_btn.click(deck_fn, inputs=[paper, talk_len, p_tier],

@@ -52,14 +52,23 @@ def main() -> None:
     assert len(figs) >= 1, "no figures extracted from the attention paper"
     print(f"figures OK: {len(figs)} images -> {figs[0].parent}")
 
-    # 3. deck generation (algorithm-paper format; gate leniently at half the target)
-    talk = "15 min (algorithm paper)"
+    # 3. deck generation (ML-paper format; gate leniently at half the cap)
+    talk = config.DEFAULT_TALK
+    cap = config.TALK_LENGTHS[talk]
     deck = present.build_deck(DECK_DOC, talk_length=talk)
     md = deck.read_text(encoding="utf-8")
     assert "marp: true" in md, "missing Marp front-matter"
     separators = len(re.findall(r"^---\s*$", md, flags=re.M))
-    assert separators >= config.TALK_LENGTHS[talk] // 2, \
-        f"too few slides: {separators} separators"
+    assert separators >= cap // 2, f"too few slides: {separators} separators"
+    # the cap is graded. Small models overshoot it, so we warn rather than trim
+    # (trimming would silently delete graded Methodology/Discussion content):
+    # the deck must be within cap, or carry a visible OVER CAP warning.
+    n_slides = len(re.findall(r"^## ", md, flags=re.M))
+    assert n_slides <= cap or "OVER CAP" in md, \
+        f"deck exceeds the {cap}-slide cap ({n_slides}) without warning the user"
+    # our own figure appendix must never be what pushes it over
+    appendix = md.count("](figures/") if "OVER CAP" not in md else 0
+    assert n_slides - appendix <= cap or "OVER CAP" in md, "appendix broke the cap"
     assert "figures/" in md or re.search(r"p\.\s*\d+", md), \
         "deck has neither figure embeds nor page references"
     # professor's required arc — lenient: 4 of 5 section names must appear
